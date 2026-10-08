@@ -1,4 +1,4 @@
-name: Build APK
+name: Build APK + AAB
 
 on:
   push:
@@ -20,13 +20,38 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.10.2
+          gradle-version: 8.14.3
 
-      - name: Zbuduj APK
+      # Wersja testowa do instalacji na telefonie
+      - name: Zbuduj APK (test)
         working-directory: StroikGitarowy
         run: gradle assembleDebug
 
       - uses: actions/upload-artifact@v4
         with:
-          name: StroikGitarowy-apk
+          name: APK-do-telefonu
           path: StroikGitarowy/app/build/outputs/apk/debug/app-debug.apk
+
+      # Wersja do sklepu Google Play, podpisana Twoim kluczem z sekretów
+      - name: Zbuduj AAB (sklep)
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        working-directory: StroikGitarowy
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_BANNER_ID: ${{ secrets.ADMOB_BANNER_ID }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          export KEYSTORE_PATH="$RUNNER_TEMP/upload.jks"
+          gradle bundleRelease
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        with:
+          name: AAB-do-sklepu
+          path: StroikGitarowy/app/build/outputs/bundle/release/app-release.aab
+    env:
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
